@@ -1,9 +1,13 @@
+from sqlalchemy.ext.asyncio.session import AsyncSession
+
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import func, DateTime,Integer,String,Float
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-import datetime
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column,sessionmaker
+from datetime import datetime
+
 
 
 
@@ -44,7 +48,7 @@ async def lifespan(app: FastAPI):
 # ---------- 4. 创建 FastAPI 应用 ----------
 app = FastAPI(lifespan=lifespan)
 
-
+AsyncSessionLocal = async_sessionmaker[AsyncSession](bind=async_engine, class_=AsyncSession, expire_on_commit=False)
 
 
 
