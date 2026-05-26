@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import func, DateTime,Integer,String,Float
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column,sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column,async_sessionmaker
 from datetime import datetime
 
 
@@ -48,7 +48,19 @@ async def lifespan(app: FastAPI):
 # ---------- 4. 创建 FastAPI 应用 ----------
 app = FastAPI(lifespan=lifespan)
 
-AsyncSessionLocal = async_sessionmaker[AsyncSession](bind=async_engine, class_=AsyncSession, expire_on_commit=False)
+
+# ---------- 5. 创建异步会话工厂 ----------
+AsyncSessionLocal = async_sessionmaker[AsyncSession](bind=async_engine, class_=AsyncSession, expire_on_commit=False) # 异步会话工厂，用于创建异步会话，每个请求创建一个会话，会话在请求处理完成后自动关闭
+
+#依赖项，用于在路由处理函数中注入异步会话
+async def get_async_session() -> AsyncSession:
+    async with AsyncSessionLocal() as session:# 异步会话工厂创建异步会话,会话加小括号就是生成一个异步会话对象。
+        try:
+            yield session
+        finally:
+            await session.close()
+
+
 
 
 
@@ -56,3 +68,7 @@ AsyncSessionLocal = async_sessionmaker[AsyncSession](bind=async_engine, class_=A
 def read_root():
     return {"Hello": "World"}
 
+if __name__ == "__main__": # 主程序入口，用于启动服务器
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+   
