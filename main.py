@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI
 from sqlalchemy import DateTime, Float, Integer, String, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.ext.asyncio.session import AsyncSession
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from fastapi.responses import PlainTextResponse
 
 
 # 1.创建异步引擎
@@ -16,23 +16,12 @@ async_engine = create_async_engine(ASYNC_DATABASE_URL,
                                    max_overflow=20)
 
 # 2.创建模型类
+from models import Base, Book 
 
 
-class Base(DeclarativeBase):  # 基础模型类，所有模型类都继承自这个类
-    __abstract__ = True  # 标记为抽象类，不能直接实例化
-    create_time: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), comment="创建时间")
-    update_time: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now(), comment="更新时间")
 
 
-class Book(Base):  # 图书模型类，每个模型类对应一个数据库表，每个字段对应一个数据库字段
-    __tablename__ = "books"  # 表名
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, comment="ID")
-    bookname: Mapped[str] = mapped_column(String(255), comment="书名")
-    author: Mapped[str] = mapped_column(String(255), comment="作者")
-    price: Mapped[float] = mapped_column(Float, comment="价格")
-    publisher: Mapped[str] = mapped_column(String(255), comment="出版社")
+
 
 
 async def create_table():
@@ -76,9 +65,17 @@ async def read_books(db: AsyncSession = Depends(get_db)):
         return {"books": books.scalars().all()}
 
 
-@app.get("/")
+@app.get("/", response_class=PlainTextResponse)
 async def read_root():
-    return {"Hello": "World"}
+    return "宝宝，我爱你。"
+
+#筛选接口
+@app.get("/books/easy")
+async def read_books_easy(db: AsyncSession = Depends(get_db)):
+    async with db.begin():
+        books = await db.execute(select(Book).where(Book.price <= 100))
+        return {"books": books.scalars().all()} # 这里books.scalars().all()返回的是一个列表，每个元素都是一个Book对象，会被FastAPI自动转换为JSON格式，形成一个字典
+
 
 
 @app.get("/books/{id}")
@@ -86,6 +83,12 @@ async def read_book(id: int, db: AsyncSession = Depends(get_db)):
     async with db.begin():
         result = await db.execute(select(Book).where(Book.id == id))
         return {"book": result.scalar_one_or_none()}
+
+
+
+
+
+
 
 if __name__ == "__main__":  # 主程序入口，用于启动服务器
     import uvicorn
