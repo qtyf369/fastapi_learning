@@ -18,8 +18,8 @@ AsyncSessionLocal = async_sessionmaker[AsyncSession](
 
 async def add_books():
     async with AsyncSessionLocal() as session:
-        session.add_all(books)
-        await session.commit()
+        session.add_all(books)# 批量添加所有book对象到会话中
+        await session.commit()# 提交会话，将所有操作写入数据库
 
 if __name__ == "__main__":
     asyncio.run(add_books())

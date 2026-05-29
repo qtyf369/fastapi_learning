@@ -1,11 +1,11 @@
 from contextlib import asynccontextmanager
-from datetime import datetime
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, status, HTTPException
 from sqlalchemy import DateTime, Float, Integer, String, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel, Field
 
 
 # 1.创建异步引擎
@@ -75,6 +75,70 @@ async def read_books_easy(db: AsyncSession = Depends(get_db)):
     async with db.begin():
         books = await db.execute(select(Book).where(Book.price <= 100))
         return {"books": books.scalars().all()} # 这里books.scalars().all()返回的是一个列表，每个元素都是一个Book对象，会被FastAPI自动转换为JSON格式，形成一个字典
+
+#模糊查询接口
+@app.get("/books/search")
+async def read_books_search(
+    bookname: str = None,
+    author: str = None,
+    price: float = None,
+    publisher: str = None,
+    db: AsyncSession = Depends(get_db)
+):
+    
+    result = await db.execute(select(Book).where(Book.author.like('阿%')))
+    return {"books": result.scalars().all()}
+
+#新增接口
+class BookCreate(BaseModel): # 新增图书模型类，用于接收客户端发送的新增图书请求
+    bookname: str = Field(..., description="书名")
+    author: str = Field(..., description="作者")
+    price: float = Field(..., description="价格")
+    publisher: str = Field(..., description="出版社")
+
+@app.post("/books") #增加图书接口，参数来自客户端发送的JSON格式（请求体）
+async def create_book(book: BookCreate, db: AsyncSession = Depends(get_db)):
+    try:
+        book = Book(**book.model_dump())
+        async with db.begin():
+            db.add(book)
+            #begin会自动提交事务
+            print('新增图书成功')
+    except Exception as e:
+        return {"message": f"Error: {str(e)}"}
+    
+@app.delete("/books/{id}") #删除图书接口，参数来自URL路径
+async def delete_book(id: int, db: AsyncSession = Depends(get_db)):
+    try:
+        async with db.begin():
+            book= await db.get(Book, id) #get，根据主键查询图书对象，直接返回Book对象，而如果是select，返回的是一个result对象!!
+            if book is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+            await db.delete(book)
+            #begin会自动提交事务
+            print('删除图书成功')
+    except Exception as e:
+        return {"message": f"Error: {str(e)}"}
+    return {"message": "Book deleted successfully"}
+
+
+@app.put("/books/{id}") #更新图书接口，参数来自URL路径
+async def update_book(id: int, data: BookCreate, db: AsyncSession = Depends(get_db)):
+    try:
+        async with db.begin():
+            book= await db.get(Book, id) #get，根据主键查询图书对象，直接返回Book对象，而如果是select，返回的是一个result对象!!
+            if book is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+            book.bookname = data.bookname or book.bookname
+            book.author = data.author or book.author
+            book.price = data.price or book.price or 0
+            book.publisher = data.publisher or book.publisher
+            #begin会自动提交事务
+            print('更新图书成功')
+    except Exception as e:
+        return {"message": f"Error: {str(e)}"}
+    return {"message": "Book updated successfully"} 
+
 
 
 
